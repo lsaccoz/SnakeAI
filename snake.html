@@ -15,8 +15,8 @@
 
     <body>
 
-        <h1>Snake</h1>
-        <span id="score"></span>
+        <h1>Snake</h1><span id="score"></span>
+		<button id="replayButton">Replay</button>
 
         <div id="svgWrapper">
             <svg id="svgContainer"></svg>
@@ -37,12 +37,17 @@
 
                 $(window).keydown(function(event) {
 
-                    if (37 <= event.keyCode && event.keyCode <= 40) {
+                    if (37 <= event.keyCode && event.keyCode <= 40 && model.gameInProgress) {
                         model.inputQueue.put(event.keyCode);
                     }
                 });
+				
+				$("#replayButton").on("click", function() {
+					stopGame();
+					startGame();
+				});
 
-                interval = setInterval(tick, refreshRate);
+                startGame();
             }
 
             function setStyle() {
@@ -53,7 +58,7 @@
             }
 
             function makeGrid() {
-                var lines = [...Array(model.gridDimension).keys()].map(i => i*(dim/model.gridDimension));
+                var lines = [...Array(gridDimension).keys()].map(i => i*(dim/gridDimension));
 
                 var linedata = svg.selectAll("line").data(lines).enter();
 
@@ -75,37 +80,48 @@
                     .attr("stroke-width", 1)
                     .attr("stroke", "#888888");
             }
+			
+			function startGame() {
+				interval = setInterval(tick, refreshRate);
+				model = {
+					gridDimension: gridDimension, // 30 x 30 grid
+					snake: [...Array(4).keys()].map(i => {return {x:gridDimension/2-i, y:gridDimension/2};}),
+					orientation: {x: 1, y: 0}, // right, left, up, down
+					food: {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)},
+					gameInProgress: true,
+					inputQueue: function() {
+						var queue = [];
+						return {
+							get: ()  => queue,
+							pop: ()  => {
+								var m = queue.pop();
+								if (!m) return undefined;
+								if (m === 37) return "left";
+								if (m === 38) return "up";
+								if (m === 39) return "right";
+								else          return "down";
+							},
+							put: (e) => queue.splice(0,0,e)
+						};
+					}(),
+					isGameOver: function() {
+						if (!(1 <= model.snake[0].x && model.snake[0].x <= model.gridDimension && 1 <= model.snake[0].y && model.snake[0].y <= model.gridDimension)) {
+							return true;
+						}
+						if (model.snake.filter(s => s.x === model.snake[0].x && s.y === model.snake[0].y).length > 1) {
+							return true;
+						}
+						return false;
+					}
+				};
+			}
+			
+			function stopGame() {
+				model.gameInProgress = false;
+				clearInterval(interval);
+			}
 
-            var model = {
-                gridDimension: gridDimension, // 30 x 30 grid
-                snake: [...Array(4).keys()].map(i => {return {x:gridDimension/2-i, y:gridDimension/2};}),
-                orientation: {x: 1, y: 0}, // right, left, up, down
-                food: {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)},
-                inputQueue: function() {
-                    var queue = [];
-                    return {
-                        get: ()  => queue,
-                        pop: ()  => {
-                            var m = queue.pop();
-                            if (!m) return undefined;
-                            if (m === 37) return "left";
-                            if (m === 38) return "up";
-                            if (m === 39) return "right";
-                            else          return "down";
-                        },
-                        put: (e) => queue.splice(0,0,e)
-                    };
-                }(),
-                isGameOver: function() {
-                    if (!(1 <= model.snake[0].x && model.snake[0].x <= model.gridDimension && 1 <= model.snake[0].y && model.snake[0].y <= model.gridDimension)) {
-                        return true;
-                    }
-                    if (model.snake.filter(s => s.x === model.snake[0].x && s.y === model.snake[0].y).length > 1) {
-                        return true;
-                    }
-                    return false;
-                }
-            };
+            var model;
 
             function tick() {
                 var move = model.inputQueue.pop();
@@ -149,13 +165,17 @@
                     }
                     model.snake.push(tail);
                     model.food = {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)};
+					while (model.snake.filter(s => s.x === model.food.x && s.y === model.food.y).length > 0) {
+						model.food = {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)};
+					}
                 }
 
                 document.getElementById("score").innerText = "your score is " + model.snake.length;
 
                 // check if lost the game
                 if (model.isGameOver()) {
-                    clearInterval(interval);
+					stopGame();
+					
                 }
             }
 
