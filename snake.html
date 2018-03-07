@@ -27,42 +27,51 @@
             var svg = null;
             var dim = 500;
             var gridDimension = 30;
-            var refreshRate = 1000/15; // denominator = number of times per second
+            var refreshRate = 1000/15; // denominador = numero de veces que refreshea por segundo
             var interval = null;
 
             window.onload = function() {
+			
+				/* hacer lo basico primero */
                 svg = d3.select("#svgContainer");
-                setStyle();
+				setStyle();
                 makeGrid();
 
+				/* añadir funcion para input del teclado */
                 $(window).keydown(function(event) {
-
                     if (37 <= event.keyCode && event.keyCode <= 40 && model.gameInProgress) {
-                        model.inputQueue.put(event.keyCode);
+                        /* si tocas un arrow key y el juego esta en proceso la añade a la queue */
+						model.inputQueue.put(event.keyCode);
                     }
                 });
 				
+				/* cuando haces click en replay el juego empieza otra vez */
 				$("#replayButton").on("click", function() {
 					stopGame();
 					startGame();
 				});
 
+				/* empezar el juego */
                 startGame();
             }
 
             function setStyle() {
+				/* ajustar las dimensiones sel svg */
                 svg.attr("height", dim);
                 svg.attr("width", dim);
 
+				/* color del fondo es gris */
                 svg.style("background", "#eeeeee");
             }
 
             function makeGrid() {
+				/* funcion lineal: # dim modelo -> # dim grafica */
                 var lines = [...Array(gridDimension).keys()].map(i => i*(dim/gridDimension));
 
+				/* para que d3 haga muchas lineas ponemos data().enter() */
                 var linedata = svg.selectAll("line").data(lines).enter();
 
-                // make horizontal lines
+                /* dibujar lineas horizontales */
                 linedata.append("line")
                     .attr("x1", 0)
                     .attr("y1", d => d)
@@ -71,7 +80,7 @@
                     .attr("stroke-width", 1)
                     .attr("stroke", "#888888");
 
-                // make vertical lines
+                /* dibujar lineas verticales */
                 linedata.append("line")
                     .attr("x1", d => d)
                     .attr("y1", 0)
@@ -82,14 +91,17 @@
             }
 			
 			function startGame() {
+				/* la funcion 'tick' es llamada cada 'refreshRate' */
 				interval = setInterval(tick, refreshRate);
+				
+				/* este es como deberia ser el modelo inicial al inicio del juego */
 				model = {
-					gridDimension: gridDimension, // 30 x 30 grid
-					snake: [...Array(4).keys()].map(i => {return {x:gridDimension/2-i, y:gridDimension/2};}),
-					orientation: {x: 1, y: 0}, // right, left, up, down
-					food: {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)},
-					gameInProgress: true,
-					inputQueue: function() {
+					gridDimension: gridDimension, /* grid */
+					snake: [...Array(4).keys()].map(i => {return {x:gridDimension/2-i, y:gridDimension/2};}), /* la array de la culebra (kevin) */
+					orientation: {x: 1, y: 0}, /* right, left, up, down */
+					food: {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)}, /* la posicion de la comida */
+					gameInProgress: true, /* si el juego esta en proceso o no */
+					inputQueue: function() { /* este es el input queue para el teclado */
 						var queue = [];
 						return {
 							get: ()  => queue,
@@ -104,7 +116,7 @@
 							put: (e) => queue.splice(0,0,e)
 						};
 					}(),
-					isGameOver: function() {
+					isGameOver: function() { /* importante funcion que checkea si has muerto */
 						if (!(1 <= model.snake[0].x && model.snake[0].x <= model.gridDimension && 1 <= model.snake[0].y && model.snake[0].y <= model.gridDimension)) {
 							return true;
 						}
@@ -117,13 +129,15 @@
 			}
 			
 			function stopGame() {
+				/* parar el juego */
 				model.gameInProgress = false;
 				clearInterval(interval);
 			}
 
-            var model;
+            var model; /* el main objeto del modelo pal juego */
 
             function tick() {
+				/* primero ver si el user ha hecho un move (la logica es medio cool) */
                 var move = model.inputQueue.pop();
                 if (move) {
                     if (move === "up" && model.orientation.y !== 1) {
@@ -140,20 +154,24 @@
                     }
                 }
 
+				/* despues de procesar input, ahora updatear la culebra y otros estados */
                 updateModel();
 
+				/* ahora dibujar el modelo previamente updateado */
                 drawModel();
             }
 
             function updateModel() {
+				/* la serpiente se tiene que mover pal frente */
                 for (var i = model.snake.length-1; i > 0; i--) {
                     model.snake[i].x = model.snake[i-1].x;
                     model.snake[i].y = model.snake[i-1].y;
                 }
+				/* snake[0] es el head de la serpiente, por ende cambia por la orientacion */
                 model.snake[0].x += model.orientation.x;
                 model.snake[0].y += model.orientation.y;
 
-                // check if we got da food
+                /* check if we got da food */
                 if (model.snake[0].x === model.food.x && model.snake[0].y === model.food.y) {
                     var last = model.snake[model.snake.length-1];
                     var penlast = model.snake[model.snake.length-2];
@@ -164,27 +182,32 @@
                         y: last.y - dy  // dy > 0 > last.y-1 : dy < 0 ? last.x+1 : last.x
                     }
                     model.snake.push(tail);
+					
+					/* crear otra comida no en la serpiente */
                     model.food = {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)};
 					while (model.snake.filter(s => s.x === model.food.x && s.y === model.food.y).length > 0) {
 						model.food = {x: randBetween(1,gridDimension), y: randBetween(1,gridDimension)};
 					}
                 }
 
-                document.getElementById("score").innerText = "your score is " + model.snake.length;
+				/* updatear el score que te dice */
+                document.getElementById("score").innerHTML = "your score is " + model.snake.length;
 
-                // check if lost the game
+                /* si pierdes, para el juego y te dice game over */
                 if (model.isGameOver()) {
 					stopGame();
-					
+					document.getElementById("score").innerHTML += " <b>Game Over!</b>";
                 }
             }
 
             function drawModel() {
+				/* cada vez que dibuja quita lo que previamente estaba dibujado */
                 svg.selectAll("rect").remove();
 
+				/* la calculacion de width y height de los boxes simpes de la culebra */
                 var box = dim/model.gridDimension;
 
-                // draw the snake
+                /* dibujar la culebra */
                 svg.selectAll("rect").data(model.snake).enter()
                     .append("rect")
                     .attr("x", d => (d.x-1)*box) // top left
@@ -197,7 +220,7 @@
                     .style("stroke-width", 1.5)
                     .style("stroke-opacity", 0.6);
 
-                // draw the food
+                /* dibujar la comida */
                 svg.append("rect")
                     .attr("x", (model.food.x-1)*box) // top left
                     .attr("y", (model.food.y-1)*box) // of rect
@@ -211,6 +234,7 @@
             }
 
             function randBetween(min, max) {
+				/* funcion que ayuda al resto del codigo */
                 return Math.round(Math.random() * (max - min) + min);
             }
 
